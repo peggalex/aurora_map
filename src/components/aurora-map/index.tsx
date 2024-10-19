@@ -1,6 +1,6 @@
 import { MapContainer, Marker, Popup, TileLayer, GeoJSON } from "react-leaflet";
 import style from "./index.module.css";
-import type { FeatureCollection } from "geojson";
+import type { FeatureCollection, Feature } from "geojson";
 import _auroraRawData from "../../data/ovation_aurora_latest.json";
 
 const lastUpdated = _auroraRawData["Observation Time"];
@@ -215,7 +215,7 @@ const auroraGeoJsonData = (() => {
 	return geoJsonData;
 })();
 
-export const AuroraMap = () => {
+export const AuroraMap = ({ nightDatas }: { nightDatas?: Feature[] }) => {
 	return (
 		<>
 			<div>
@@ -242,6 +242,25 @@ export const AuroraMap = () => {
 					url={mapUrl}
 					noWrap
 				/>
+				{nightDatas &&
+					nightDatas.map((nightData, i) => (
+						<GeoJSON
+							data={nightData}
+							style={(feature) => {
+								if (!feature) {
+									return {};
+								}
+								return {
+									fillColor: "white",
+									weight: 0,
+									color: "white",
+									opacity: 0.5,
+									fillOpacity: 0.1,
+								};
+							}}
+							key={i + (nightData as any).coordinates[0][5][0]}
+						/>
+					))}
 				<GeoJSON
 					attribution="&copy; NOAA"
 					data={auroraGeoJsonData}
