@@ -1,7 +1,46 @@
-import { MapContainer, Marker, Popup, TileLayer, GeoJSON } from "react-leaflet";
-import style from "./index.module.css";
-import type { FeatureCollection, Feature } from "geojson";
+import {
+	MapContainer,
+	Marker,
+	Popup,
+	TileLayer,
+	GeoJSON,
+	useMapEvents,
+} from "react-leaflet";
+import type { FeatureCollection, Feature, Geometry } from "geojson";
 import _auroraRawData from "../../data/ovation_aurora_latest.json";
+import {
+	SyntheticEvent,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useReducer,
+	useRef,
+	useState,
+} from "react";
+import { css } from "@emotion/css";
+import globeIconPath from "../../graphics/globe-icon.png";
+import { LatLng, Icon } from "leaflet";
+import { assertNever } from "../../shared/assertNever";
+
+import {
+	Autocomplete,
+	Collapse,
+	Drawer,
+	IconButton,
+	InputAdornment,
+	SwipeableDrawer,
+	TextField,
+} from "@mui/material";
+import { ReactComponent as NoCloudIcon } from "../../graphics/no-cloud.svg";
+import { ReactComponent as SunIcon } from "../../graphics/sun.svg";
+import { ReactComponent as MoonIcon } from "../../graphics/moon.svg";
+import { ReactComponent as SunriseIcon } from "../../graphics/sunrise.svg";
+import { ReactComponent as SunsetIcon } from "../../graphics/sunset.svg";
+import { ReactComponent as XCircleIcon } from "../../graphics/x-circle.svg";
+import { ReactComponent as ChevronExpandIcon } from "../../graphics/chevron-expand.svg";
+import { ReactComponent as ChevronCollapseIcon } from "../../graphics/chevron-collapse.svg";
+import { ReactComponent as PinIcon } from "../../graphics/pin.svg";
+import PinIconPath from "../../graphics/pin.png";
 
 const lastUpdated = _auroraRawData["Observation Time"];
 const forecastTime = _auroraRawData["Forecast Time"];
@@ -215,9 +254,7 @@ const auroraGeoJsonData = (() => {
 	return geoJsonData;
 })();
 
-export const AuroraMap = ({ nightDatas }: { nightDatas?: Feature[] }) => {
-	return (
-		<>
+/*
 			<div>
 				{Array.from(Array(100)).map((_, i) => (
 					<div
@@ -231,8 +268,179 @@ export const AuroraMap = ({ nightDatas }: { nightDatas?: Feature[] }) => {
 					></div>
 				))}
 			</div>
+*/
+
+type State = {
+	isDrawerOpen: boolean;
+	position: null | LatLng;
+	isDrawerExpanded: boolean;
+};
+
+type Action =
+	| { type: "expandDrawer" }
+	| { type: "shrinkDrawer" }
+	| { type: "closeDrawer" }
+	| { type: "pickLocation"; newPosition: LatLng };
+
+export const AuroraMap = ({
+	nightDatas,
+	sunPosition = [0, 0],
+}: {
+	nightDatas?: Feature[];
+	sunPosition?: [number, number];
+}) => {
+	const [state, dispatch] = useReducer<
+		(state: State, action: Action) => State
+	>(
+		(state, action) => {
+			switch (action.type) {
+				case "expandDrawer": {
+					if (state.isDrawerOpen) {
+						return {
+							...state,
+							isDrawerExpanded: true,
+							isDrawerOpen: true,
+						};
+					}
+					return { ...state };
+				}
+				case "shrinkDrawer":
+					return {
+						...state,
+						isDrawerExpanded: false,
+					};
+				case "closeDrawer":
+					return {
+						...state,
+						isDrawerOpen: false,
+						position: null,
+					};
+				case "pickLocation":
+					return {
+						...state,
+						isDrawerOpen: true,
+						isDrawerExpanded: true,
+						position: action.newPosition,
+					};
+				default:
+					return assertNever(action, "action");
+			}
+		},
+		{
+			isDrawerOpen: false,
+			position: null,
+			isDrawerExpanded: false,
+		}
+	);
+
+	const auroraChance = useMemo(() => {
+		if (!state.position) {
+			return 0;
+		}
+		return getAuroraValue(state.position, auroraGeoJsonData as any) ?? 0;
+	}, [state.position?.lat, state.position?.lng]);
+
+	return (
+		<div
+			className={css`
+				position: relative;
+			`}
+		>
+			<div
+				className={css`
+					position: absolute;
+					left: 0;
+					right: 0;
+					margin: 0 auto;
+					top: 1.5rem;
+					margin: 0 auto;
+					z-index: 401;
+					width: calc(100vw - 3rem);
+					max-width: 500px;
+				`}
+			>
+				<Autocomplete
+					disablePortal
+					options={[
+						"Toronto, Ontario, Canada",
+						"London, United Kingdom",
+						"Luxenburg, Germany",
+					]}
+					sx={{
+						" .MuiFormControl-root": {
+							borderRadius: "1000px",
+							backgroundColor: "#334155",
+							border: "none",
+							boxShadow: "0px 4px 10px rgba(0,0,0,0.5)",
+						},
+						" .MuiOutlinedInput-notchedOutline": {
+							borderRadius: "1000px",
+							"&:not(:hover)": {
+								borderColor: "transparent",
+							},
+						},
+					}}
+					renderInput={(params) => (
+						<TextField
+							{...params}
+							InputProps={{
+								...params.InputProps,
+
+								startAdornment: (
+									<>
+										<InputAdornment position="start">
+											<img
+												style={{ marginLeft: "0.5rem" }}
+												src={globeIconPath}
+												alt="globe"
+												height={24}
+												width={24}
+											/>
+										</InputAdornment>
+										{params.InputProps.startAdornment}
+									</>
+								),
+							}}
+							placeholder="Search for a place"
+						/>
+					)}
+					{
+						/*slotProps={
+						{
+							/*paper: {
+							sx: {
+								borderRadius: "1000px",
+								padding: "0.65rem 0.75rem",
+								backgroundColor: "#334155",
+								border: "none",
+								boxShadow: "0px 4px 10px rgba(0,0,0,0.5)",
+							},
+						},
+						/*input: {
+							sx: {
+								color: "white",
+								"&::placeholder": {
+									color: "#E2E8F0",
+									opacity: 1,
+								},
+								fontSize: "1.125rem",
+							},
+						},
+						popupIndicator: {
+							sx: { display: "none" },
+						},
+					}*/
+						...{}
+					}
+				/>
+			</div>
+
 			<MapContainer
-				id={style.auroraMap}
+				style={{
+					height: document.body.getBoundingClientRect().height,
+					backgroundColor: "#121212",
+				}}
+				zoomControl={false}
 				center={[51.505, -0.09]}
 				zoom={13}
 				scrollWheelZoom={true}
@@ -256,6 +464,7 @@ export const AuroraMap = ({ nightDatas }: { nightDatas?: Feature[] }) => {
 									color: "white",
 									opacity: 0.5,
 									fillOpacity: 0.1,
+									className: "disablePointerEvents",
 								};
 							}}
 							key={i + (nightData as any).coordinates[0][5][0]}
@@ -264,6 +473,30 @@ export const AuroraMap = ({ nightDatas }: { nightDatas?: Feature[] }) => {
 				<GeoJSON
 					attribution="&copy; NOAA"
 					data={auroraGeoJsonData}
+					{
+						/*onEachFeature={(feature, layer) => {
+						layer.on({
+							click: (e) => {
+								var layer = e.target;
+								console.log({ layer });
+							},
+							mouseover: (e) => {
+								var layer = e.target;
+
+								layer.setStyle({
+									weight: 5,
+									color: "#666",
+									dashArray: "",
+									fillOpacity: 0.7,
+								});
+
+								console.log({ layer });
+
+								layer.bringToFront();
+							},
+						});
+					}}*/ ...{}
+					}
 					style={(feature) => {
 						if (!feature) {
 							return {};
@@ -286,7 +519,453 @@ export const AuroraMap = ({ nightDatas }: { nightDatas?: Feature[] }) => {
 						};
 					}}
 				/>
+				<LocationMarker
+					position={state.position}
+					onPickPosition={(newPosition: LatLng) =>
+						dispatch({ type: "pickLocation", newPosition })
+					}
+				/>
 			</MapContainer>
-		</>
+			<Drawer
+				variant="persistent"
+				open={state.isDrawerOpen}
+				hideBackdrop
+				anchor={"bottom"}
+				onClose={() => dispatch({ type: "closeDrawer" })}
+				PaperProps={{
+					sx: {
+						width: "100%",
+						maxWidth: 500,
+						margin: "0 auto",
+						backgroundColor: "#0F172A",
+						padding: "1rem 2.5em 0 2.5rem",
+						borderRadius: "25px 25px 0 0",
+						border: "none",
+						display: "flex",
+						flexDirection: "column",
+						alignItems: "center",
+					},
+				}}
+				onClick={() =>
+					dispatch({
+						type: state.isDrawerExpanded
+							? "shrinkDrawer"
+							: "expandDrawer",
+					})
+				}
+			>
+				<div
+					style={{
+						width: "100%",
+						maxWidth: "400px",
+					}}
+				>
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "column",
+						}}
+					>
+						<div
+							style={{
+								position: "relative",
+								width: "100%",
+							}}
+						>
+							<div
+								style={{
+									margin: "0 auto",
+									width: "fit-content",
+								}}
+							>
+								{state.isDrawerExpanded ? (
+									<ChevronCollapseIcon />
+								) : (
+									<ChevronExpandIcon />
+								)}
+							</div>
+							<div
+								style={{
+									position: "absolute",
+									right: "-0.5rem",
+									top: "2px",
+									height: "22px",
+									zIndex: 10_000,
+								}}
+								onClick={(e) => {
+									e.preventDefault(); // don't propagate events
+									dispatch({ type: "closeDrawer" });
+								}}
+							>
+								<XCircleIcon />
+							</div>
+						</div>
+						<h3
+							style={{
+								fontSize: "14px",
+								fontWeight: 500,
+								margin: 0,
+								marginTop: "0.5rem",
+								marginBottom: "1rem",
+								textAlign: "center",
+							}}
+						>
+							{state.position
+								? getCoordinateDisplayStr(state.position)
+								: null}
+						</h3>
+					</div>
+					<Collapse
+						in={state.isDrawerExpanded}
+						timeout="auto"
+						unmountOnExit
+					>
+						<div style={{ paddingBottom: "2.5rem" }}>
+							<h2 style={{ margin: 0, fontSize: "24px" }}>
+								Toronto
+							</h2>
+							<h3
+								style={{
+									margin: 0,
+									fontSize: "14px",
+									fontWeight: 400,
+									color: "#CBD5E1",
+								}}
+							>
+								Ontario, Canada
+							</h3>
+							<div
+								style={{
+									marginTop: "1rem",
+									columnGap: "1rem",
+									display: "grid",
+									gridTemplateColumns: "100px auto",
+								}}
+							>
+								<p
+									style={{
+										fontSize: "12px",
+										fontWeight: 400,
+										color: "#CBD5E1",
+										margin: 0,
+									}}
+								>
+									Aurora chance
+								</p>
+								<p
+									style={{
+										fontSize: "12px",
+										fontWeight: 400,
+										color: "#CBD5E1",
+										margin: 0,
+									}}
+								>
+									Visibility
+								</p>
+								{state.position && (
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: "0.75rem",
+										}}
+									>
+										<div
+											style={{
+												marginLeft: "0.25rem",
+												width: "6px",
+												height: "6px",
+												borderRadius: "6px",
+												backgroundColor:
+													auroraChance === 0
+														? "#475569"
+														: getColorFromPercent({
+																percent:
+																	auroraChance /
+																	100,
+														  }),
+											}}
+										></div>
+										<p
+											style={{
+												fontSize: "42px",
+												fontWeight: 600,
+												margin: 0,
+											}}
+										>
+											{auroraChance}
+											<span
+												style={{
+													fontSize: "18px",
+													marginLeft: "0.25rem",
+												}}
+											>
+												%
+											</span>
+										</p>
+									</div>
+								)}
+								<div
+									style={{
+										display: "flex",
+										flexDirection: "column",
+										justifyContent: "space-around",
+									}}
+								>
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: "0.5rem",
+										}}
+									>
+										<NoCloudIcon />
+										<p style={{ margin: 0 }}>
+											<span>32%</span> <span>Low</span>
+										</p>
+									</div>
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: "0.5rem",
+										}}
+									>
+										{(() => {
+											const { lng, lat } =
+												state.position ?? {
+													lng: 0,
+													lat: 0,
+												};
+											const daylightLevel =
+												getDaylightLevel(sunPosition, [
+													lng,
+													lat,
+												]);
+											const { icon, displayText } =
+												(() => {
+													switch (daylightLevel) {
+														case "DAY":
+															return {
+																icon: (
+																	<SunIcon />
+																),
+																displayText:
+																	"Day",
+															};
+														case "NIGHT":
+															return {
+																icon: (
+																	<MoonIcon />
+																),
+																displayText:
+																	"Night",
+															};
+														case "SUNRISE":
+															return {
+																icon: (
+																	<SunriseIcon />
+																),
+																displayText:
+																	"Sunrise",
+															};
+														case "SUNSET":
+															return {
+																icon: (
+																	<SunsetIcon />
+																),
+																displayText:
+																	"Sunset",
+															};
+														case "TWILIGHT_DAWN":
+															return {
+																icon: (
+																	<SunriseIcon />
+																),
+																displayText:
+																	"Twilight",
+															};
+														case "TWILIGHT_DUSK":
+															return {
+																icon: (
+																	<SunsetIcon />
+																),
+																displayText:
+																	"Twilight",
+															};
+													}
+												})();
+											return (
+												<>
+													{icon}
+													<p style={{ margin: 0 }}>
+														{displayText}
+													</p>
+												</>
+											);
+										})()}
+									</div>
+								</div>
+							</div>
+						</div>
+					</Collapse>
+				</div>
+			</Drawer>
+		</div>
 	);
 };
+
+type DaylightLevel =
+	| "DAY"
+	| "NIGHT"
+	| "SUNSET"
+	| "SUNRISE"
+	| "TWILIGHT_DUSK"
+	| "TWILIGHT_DAWN";
+
+const getDaylightLevel = (
+	sunPosition: [number, number],
+	[lng, lat]: [number, number]
+): DaylightLevel => {
+	const radius = getRadiusBetweenPoints(sunPosition, [lng, lat]);
+	const radiusAhead = getRadiusBetweenPoints(sunPosition, [lng + 1, lat]);
+	const isEarly = radius > radiusAhead; // radius is approaching sun
+	if (radius < 90) {
+		if (radius >= 88) {
+			return isEarly ? "SUNRISE" : "SUNSET";
+		}
+		return "DAY";
+	} else {
+		if (radius <= 92) {
+			return isEarly ? "TWILIGHT_DAWN" : "TWILIGHT_DUSK";
+		}
+		return "NIGHT";
+	}
+};
+
+function getCoordinateDisplayStr(latLng: LatLng) {
+	const displayLong = (() => {
+		const lng = Math.round(latLng.lng * 10) / 10;
+		return lng < 0 ? `${(-1 * lng).toFixed(1)}° W` : `${lng.toFixed(1)}° E`;
+	})();
+	const displayLat = (() => {
+		const lat = Math.round(latLng.lat * 10) / 10;
+		return lat < 0 ? `${(-1 * lat).toFixed(1)}° S` : `${lat.toFixed(1)}° N`;
+	})();
+
+	return `${displayLong} ${displayLat}`;
+}
+
+function degreesToRadians(degrees: number) {
+	return degrees * (Math.PI / 180);
+}
+
+function radiansToDegrees(radians: number) {
+	return radians / (Math.PI / 180);
+}
+
+function getRadiusBetweenPoints(
+	[long1, lat1]: [number, number],
+	[long2, lat2]: [number, number]
+) {
+	return radiansToDegrees(
+		Math.acos(
+			Math.sin(degreesToRadians(lat1)) *
+				Math.sin(degreesToRadians(lat2)) +
+				Math.cos(degreesToRadians(lat1)) *
+					Math.cos(degreesToRadians(lat2)) *
+					Math.cos(degreesToRadians(long2) - degreesToRadians(long1))
+		)
+	); //* 6371
+}
+
+function getAuroraValue(
+	latLng: LatLng,
+	geoJson: FeatureCollection<Geometry, FeatureProperties>
+) {
+	const targetLat = Math.round(latLng.lat);
+	const targetLong360 = (() => {
+		const long180 = Math.round(latLng.lng);
+		return long180 < 0 ? long180 + 360 : long180;
+	})();
+
+	const doesFeatureMatch = ({ index }: { index: number }) => {
+		const { properties } = geoJson.features[index];
+		return (
+			properties.lat === targetLat && properties.long360 === targetLong360
+		);
+	};
+
+	const getAurora = ({ index }: { index: number }) =>
+		geoJson.features[index].properties.aurora;
+
+	let startBound = 0;
+	if (doesFeatureMatch({ index: startBound })) {
+		return getAurora({ index: startBound });
+	}
+
+	let endBound = geoJson.features.length - 1;
+	if (doesFeatureMatch({ index: endBound })) {
+		return getAurora({ index: endBound });
+	}
+
+	while (endBound - startBound > 1) {
+		const midPoint = startBound + Math.round((endBound - startBound) / 2);
+
+		const feature = geoJson.features[midPoint];
+		if (feature.properties.long360 === targetLong360) {
+			if (feature.properties.lat === targetLat) {
+				return getAurora({ index: midPoint });
+			}
+			if (feature.properties.lat < targetLat) {
+				startBound = midPoint;
+			} else {
+				endBound = midPoint;
+			}
+		} else if (feature.properties.long360 < targetLong360) {
+			startBound = midPoint;
+		} else {
+			endBound = midPoint;
+		}
+	}
+	return null;
+}
+
+function LocationMarker({
+	position,
+	onPickPosition,
+}: {
+	position: LatLng | null;
+	onPickPosition: (newPosition: LatLng) => void;
+}) {
+	const updatePosition = (latlng: LatLng) => {
+		//map.panTo(latlng);
+		onPickPosition(latlng);
+	};
+	const map = useMapEvents({
+		click(e) {
+			console.log(e);
+			updatePosition(e.latlng);
+		},
+		locationfound(e) {
+			map.flyTo(e.latlng, map.getZoom());
+		},
+	});
+
+	return position === null ? null : (
+		<Marker
+			key={`${position.lat},${position.lng}`}
+			position={position}
+			icon={
+				new Icon({
+					iconUrl: PinIconPath,
+					iconSize: [27, 33],
+					className: "blinking-child",
+					iconAnchor: [27 / 2, 33],
+				})
+			}
+		>
+			<Popup>You are here</Popup>
+		</Marker>
+	);
+}

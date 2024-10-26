@@ -7,6 +7,7 @@ import { AuroraMap } from "../aurora-map";
 
 export function Chart(props) {
 	const [nightDatas, setNightDatas] = useState(undefined);
+	const [sunPosition, setSunPosition] = useState(null);
 
 	useLayoutEffect(() => {
 		let root = am5.Root.new("chartdiv");
@@ -205,6 +206,7 @@ export function Chart(props) {
 
 		function updateDateNight(time) {
 			var sunPosition = solarPosition(time);
+			setSunPosition([sunPosition.longitude, sunPosition.latitude]);
 			sunDataItem.set("longitude", sunPosition.longitude);
 			sunDataItem.set("latitude", sunPosition.latitude);
 
@@ -418,11 +420,11 @@ export function Chart(props) {
 
 	return (
 		<>
-			<div
-				id="chartdiv"
-				style={{ width: "500px", height: "500px" }}
-			></div>
-			<AuroraMap nightDatas={nightDatas} />
+			<div id="chartdiv" style={{ width: "500px", height: "0px" }}></div>
+			<AuroraMap
+				nightDatas={nightDatas}
+				sunPosition={sunPosition ?? [0, 0]}
+			/>
 		</>
 	);
 }

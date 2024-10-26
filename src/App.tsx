@@ -2,18 +2,17 @@ import React, { useState } from "react";
 import "./App.css";
 import { Chart } from "./components/amchart/chart";
 import { AuroraMap } from "./components/aurora-map";
+import { theme } from "./shared/theme";
+
+import { ThemeProvider } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
 
 function App() {
-	const [useAMCharts, setUseAmCharts] = useState(false);
 	return (
-		<div className="App">
-			<label id="use-am-charts-label">Use AM Charts</label>
-			<input
-				type="checkbox"
-				onChange={(e) => setUseAmCharts(e.target.checked)}
-			/>
-			{useAMCharts ? <Chart /> : <AuroraMap />}
-		</div>
+		<ThemeProvider theme={theme}>
+			<CssBaseline enableColorScheme />
+			<Chart />
+		</ThemeProvider>
 	);
 }
 

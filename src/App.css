@@ -1,38 +1,30 @@
-.App {
-	text-align: center;
+@font-face {
+	font-family: Lexend;
+	src: url(/src/fonts/Lexend-VariableFont_wght.ttf);
 }
 
-.App-logo {
-	height: 40vmin;
-	pointer-events: none;
+body,
+* {
+	font-family: Lexend;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-	.App-logo {
-		animation: App-logo-spin infinite 20s linear;
-	}
+body {
+	height: 100vh;
 }
 
-.App-header {
-	background-color: #282c34;
-	min-height: 100vh;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	font-size: calc(10px + 2vmin);
-	color: white;
+.disablePointerEvents {
+	pointer-events: none !important;
 }
 
-.App-link {
-	color: #61dafb;
+.blinking {
+	animation: blinking 1s infinite;
 }
 
-@keyframes App-logo-spin {
+@keyframes blinking {
 	from {
-		transform: rotate(0deg);
+		transform: scale(0.75);
 	}
 	to {
-		transform: rotate(360deg);
+		transform: scale(1.1);
 	}
 }
