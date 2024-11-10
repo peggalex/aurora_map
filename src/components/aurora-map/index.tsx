@@ -227,7 +227,10 @@ export const AuroraMap = ({
 		}
 	);
 
-	const [auroraGeoJsonData, setAuroraGeoJsonData] = useState(null);
+	const [auroraForecastData, setAuroraForecastData] =
+		useState<AuroraForecast | null>(null);
+	const auroraGeoJsonData = auroraForecastData?.geoJson ?? null;
+
 	const fetchedCurrentAuroraForecast = useRef(false);
 	useEffect(() => {
 		if (!fetchedCurrentAuroraForecast.current) {
@@ -236,7 +239,7 @@ export const AuroraMap = ({
 				`${process.env.REACT_APP_API_URL}/get-current-aurora-forecast`
 			).then(async (resp) => {
 				const data = await resp.json();
-				setAuroraGeoJsonData(data?.geoJson ?? null);
+				setAuroraForecastData(data ?? null);
 			});
 		}
 	}, []);
@@ -338,6 +341,9 @@ export const AuroraMap = ({
 				<LocationDrawer
 					isDrawerOpen={state.isDrawerOpen}
 					isDrawerExpanded={state.isDrawerExpanded}
+					currentAuroraForecastTime={
+						new Date(auroraForecastData!.forecastTime)
+					}
 					auroraGeoJsonData={auroraGeoJsonData}
 					position={state.position}
 					sunPosition={sunPosition}
@@ -391,3 +397,9 @@ function LocationMarker({
 		</Marker>
 	);
 }
+
+export type AuroraForecast = {
+	forecastTime: string;
+	observationTime: string;
+	geoJson: any;
+};

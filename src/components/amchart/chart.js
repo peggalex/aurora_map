@@ -9,6 +9,7 @@ export function Chart(props) {
 	const [nightDatas, setNightDatas] = useState(undefined);
 	const [sunPosition, setSunPosition] = useState(null);
 
+	/*
 	useLayoutEffect(() => {
 		let root = am5.Root.new("chartdiv");
 
@@ -416,11 +417,11 @@ export function Chart(props) {
 		return () => {
 			root.dispose();
 		};
-	}, []);
+	}, []);*/
 
 	return (
 		<>
-			<div id="chartdiv" style={{ width: "500px", height: "0px" }}></div>
+			{/*<div id="chartdiv" style={{ width: "500px", height: "0px" }}></div>*/}
 			<AuroraMap
 				nightDatas={nightDatas}
 				sunPosition={sunPosition ?? [0, 0]}

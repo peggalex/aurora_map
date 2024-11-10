@@ -1,9 +1,13 @@
 import { LatLng } from "leaflet";
 
-import { Collapse, css, Drawer, Tooltip } from "@mui/material";
+import { Collapse, css, Drawer, Slider, Tooltip } from "@mui/material";
 import { ReactComponent as NoCloudIcon } from "../../graphics/no-cloud.svg";
 import { ReactComponent as OneCloudIcon } from "../../graphics/one-cloud.svg";
 import { ReactComponent as TwoCloudsIcon } from "../../graphics/two-clouds.svg";
+import * as am5 from "@amcharts/amcharts5";
+import am5themes_Animated from "@amcharts/amcharts5/themes/Animated";
+import * as am5map from "@amcharts/amcharts5/map";
+import * as am5xy from "@amcharts/amcharts5/xy";
 
 import { ReactComponent as SunIcon } from "../../graphics/sun.svg";
 import { ReactComponent as EyeIcon } from "../../graphics/eye.svg";
@@ -14,7 +18,7 @@ import { ReactComponent as SunsetIcon } from "../../graphics/sunset.svg";
 import { ReactComponent as XCircleIcon } from "../../graphics/x-circle.svg";
 import { ReactComponent as ChevronExpandIcon } from "../../graphics/chevron-expand.svg";
 import { ReactComponent as ChevronCollapseIcon } from "../../graphics/chevron-collapse.svg";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection, Geometry } from "geojson";
 import { FeatureProperties } from "../../shared/types/feature-properties";
 import { getColorFromPercent } from "../../shared/get-color-from-percent";
@@ -22,6 +26,7 @@ import { getColorFromPercent } from "../../shared/get-color-from-percent";
 export const LocationDrawer = ({
 	isDrawerOpen,
 	isDrawerExpanded,
+	currentAuroraForecastTime,
 	auroraGeoJsonData,
 	position,
 	sunPosition,
@@ -30,27 +35,195 @@ export const LocationDrawer = ({
 }: {
 	isDrawerOpen: boolean;
 	isDrawerExpanded: boolean;
+	currentAuroraForecastTime: Date;
 	auroraGeoJsonData: any;
 	position: LatLng;
 	sunPosition: [number, number];
 	closeDrawer: () => void;
 	toggleDrawerExpanded: () => void;
 }) => {
-	const [weatherData, setWeatherData] = useState<WeatherForecast | null>();
+	const [weatherData, setWeatherData] = useState<WeatherForecast | null>(
+		null
+	);
 	useEffect(() => {
 		const url = new URL(
 			`${process.env.REACT_APP_API_URL}/get-current-weather-forecast`
 		);
 		url.searchParams.append("latitude", position.lat.toString());
 		url.searchParams.append("longitude", position.lng.toString());
+		setWeatherData(null);
 		fetch(url).then(async (resp) => {
 			const data = await resp.json();
 			setWeatherData(data ?? null);
 		});
 	}, [position]);
+
+	const [forecastTimeSeries, setForecastTimeSeries] =
+		useState<AuroraForecastTimeSeries | null>(null);
+	useEffect(() => {
+		const url = new URL(
+			`${process.env.REACT_APP_API_URL}/aurora-chance-for-location`
+		);
+		url.searchParams.append("lat", position.lat.toString());
+		url.searchParams.append("long", position.lng.toString());
+		url.searchParams.append(
+			"timestamp",
+			currentAuroraForecastTime.toISOString()
+		);
+		setForecastTimeSeries(null);
+		fetch(url).then(async (resp) => {
+			const data = await resp.json();
+			setForecastTimeSeries(data ?? null);
+		});
+	}, [position]);
+
 	const auroraChance = useMemo(() => {
 		return getAuroraValue(position, auroraGeoJsonData as any) ?? 0;
 	}, [auroraGeoJsonData, position]);
+
+	const moveCursorRef = useRef((percentX: number) => {});
+
+	useLayoutEffect(() => {
+		let root = am5.Root.new("chartdiv");
+
+		root.setThemes([am5themes_Animated.new(root)]);
+
+		let chart = root.container.children.push(
+			am5xy.XYChart.new(root, {
+				panY: false,
+				layout: root.verticalLayout,
+			})
+		);
+
+		chart
+			.get("colors")!
+			.set("colors", [
+				am5.color("#FFFFFF"),
+				am5.color("#FFFFFF"),
+				am5.color("#FFFFFF"),
+				am5.color("#FFFFFF"),
+				am5.color("#FFFFFF"),
+			]);
+
+		// Create Y-axis
+		let yAxis = chart.yAxes.push(
+			am5xy.ValueAxis.new(root, {
+				numberFormat: "#'%'",
+				min: 0,
+				max: 100,
+				renderer: am5xy.AxisRendererY.new(root, {
+					fill: am5.color("#FFFFFF"),
+					stroke: am5.color("#FFFFFF"),
+					minGridDistance: 100,
+				}),
+			})
+		);
+		yAxis.get("renderer").labels.template.setAll({
+			fill: am5.color("#FFFFFF"),
+			paddingRight: 10,
+		});
+		yAxis.get("renderer").grid.template.setAll({
+			//strokeWidth: 0,
+			visible: false,
+		});
+
+		// Create X-Axis
+		let xAxis = chart.xAxes.push(
+			am5xy.DateAxis.new(root, {
+				renderer: am5xy.AxisRendererX.new(root, {}),
+				baseInterval: {
+					timeUnit: "minute",
+					count: 1,
+				},
+			})
+		);
+		xAxis.get("renderer").labels.template.setAll({
+			fill: am5.color("#FFFFFF"),
+			paddingTop: 10,
+		});
+		xAxis.get("renderer").grid.template.setAll({
+			//strokeWidth: 0,
+			visible: false,
+		});
+
+		let series = chart.series.push(
+			am5xy.LineSeries.new(root, {
+				name: "Series",
+				xAxis: xAxis,
+				yAxis: yAxis,
+				valueYField: "auroraChance",
+				valueXField: "timestamp",
+				fill: am5.color("#FFFFFF"),
+				stroke: am5.color("#09CD89"),
+				background: am5.RoundedRectangle.new(root, {
+					fill: am5.color("#0f172a"),
+					fillOpacity: 0.2,
+					cornerRadiusBL: 10,
+					cornerRadiusBR: 10,
+					cornerRadiusTL: 10,
+					cornerRadiusTR: 10,
+				}),
+				tooltip: am5.Tooltip.new(root, {}),
+			})
+		);
+
+		series.data.setAll(forecastTimeSeries?.forecast ?? []);
+		series.get("tooltip")!.label.set("text", "{valueY}%");
+
+		xAxis.set(
+			"tooltip",
+			am5.Tooltip.new(root, {
+				themeTags: ["axis"],
+			})
+		);
+		series.bullets.push(function () {
+			return am5.Bullet.new(root, {
+				sprite: am5.Circle.new(root, {
+					radius: 1,
+					fill: series.get("fill"),
+					stroke: am5.color("#09CD89"),
+					strokeWidth: 2,
+				}),
+			});
+		});
+
+		// Add cursor
+		chart.set(
+			"cursor",
+			am5xy.XYCursor.new(root, {
+				snapToSeries: [series],
+				snapToSeriesBy: "x",
+			})
+		);
+
+		moveCursorRef.current = (percentX) => {
+			chart.get("cursor")!.setAll({
+				positionX: percentX,
+				positionY: 0.5,
+				alwaysShow: true,
+			});
+		};
+
+		/*chart.get("cursor")!.events.on("cursormoved",  () => {
+
+		})*/
+
+		chart.get("cursor")!.lineX.setAll({
+			stroke: am5.color("#BB428D"),
+			strokeDasharray: [],
+			strokePattern: am5.LinePattern.new(root, {
+				color: am5.color("#BB428D"),
+				gap: 0,
+			}),
+		});
+		chart.get("cursor")!.lineY.setAll({
+			visible: false,
+		});
+
+		return () => {
+			root.dispose();
+		};
+	}, [forecastTimeSeries]);
 
 	return (
 		<Drawer
@@ -135,7 +308,7 @@ export const LocationDrawer = ({
 						{position ? getCoordinateDisplayStr(position) : null}
 					</h3>
 				</div>
-				<Collapse in={isDrawerExpanded} timeout="auto" unmountOnExit>
+				<Collapse in={isDrawerExpanded} timeout="auto">
 					<div style={{ paddingBottom: "2.5rem" }}>
 						<div style={{ display: "flex", gap: "0.5rem" }}>
 							<div
@@ -408,6 +581,38 @@ export const LocationDrawer = ({
 							</div>
 						</div>
 					</div>
+					<Slider
+						onClick={(e) => {
+							e.stopPropagation();
+						}}
+						min={forecastTimeSeries?.forecast[0].timestamp}
+						max={forecastTimeSeries?.forecast.at(-1)!.timestamp}
+						onChange={(event, value) => {
+							if (!forecastTimeSeries) {
+								return;
+							}
+							const min =
+								forecastTimeSeries.forecast[0].timestamp;
+							const max =
+								forecastTimeSeries.forecast.at(-1)!.timestamp;
+							const percentX =
+								((value as number) - min) / (max - min);
+							moveCursorRef.current(percentX);
+						}}
+					/>
+					<div
+						style={{
+							padding: "1rem",
+							backgroundColor: "#1e293b",
+							borderRadius: "10px",
+							marginBottom: "1rem",
+						}}
+					>
+						<div
+							id="chartdiv"
+							style={{ width: "100%", height: "300px" }}
+						></div>
+					</div>
 				</Collapse>
 			</div>
 		</Drawer>
@@ -543,3 +748,15 @@ function getAuroraValue(
 	}
 	return null;
 }
+
+export type AuroraForecastTimeSeries = {
+	context: {
+		lat: number;
+		long: number;
+		timestamp: number;
+	};
+	forecast: {
+		auroraChance: number;
+		timestamp: number;
+	}[];
+};
