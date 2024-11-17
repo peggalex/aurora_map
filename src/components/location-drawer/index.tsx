@@ -585,10 +585,10 @@ export const LocationDrawer = ({
 						onClick={(e) => {
 							e.stopPropagation();
 						}}
-						min={forecastTimeSeries?.forecast[0].timestamp}
-						max={forecastTimeSeries?.forecast.at(-1)!.timestamp}
+						min={forecastTimeSeries?.forecast.at(0)?.timestamp}
+						max={forecastTimeSeries?.forecast.at(-1)?.timestamp}
 						onChange={(event, value) => {
-							if (!forecastTimeSeries) {
+							if (!forecastTimeSeries?.forecast.length) {
 								return;
 							}
 							const min =
