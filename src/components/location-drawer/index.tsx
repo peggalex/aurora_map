@@ -1,6 +1,13 @@
 import { LatLng } from "leaflet";
 
-import { Collapse, css, Drawer, Slider, Tooltip } from "@mui/material";
+import {
+	Collapse,
+	css,
+	Drawer,
+	Skeleton,
+	Slider,
+	Tooltip,
+} from "@mui/material";
 import { ReactComponent as NoCloudIcon } from "../../graphics/no-cloud.svg";
 import { ReactComponent as OneCloudIcon } from "../../graphics/one-cloud.svg";
 import { ReactComponent as TwoCloudsIcon } from "../../graphics/two-clouds.svg";
@@ -42,19 +49,20 @@ export const LocationDrawer = ({
 	closeDrawer: () => void;
 	toggleDrawerExpanded: () => void;
 }) => {
-	const [weatherData, setWeatherData] = useState<WeatherForecast | null>(
-		null
-	);
+	const [weatherData, setWeatherData] = useState<
+		| { isLoading: false; forecast: WeatherForecast | null }
+		| { isLoading: true }
+	>({ isLoading: true });
 	useEffect(() => {
 		const url = new URL(
 			`${process.env.REACT_APP_API_URL}/get-current-weather-forecast`
 		);
 		url.searchParams.append("latitude", position.lat.toString());
 		url.searchParams.append("longitude", position.lng.toString());
-		setWeatherData(null);
+		setWeatherData({ isLoading: true });
 		fetch(url).then(async (resp) => {
 			const data = await resp.json();
-			setWeatherData(data ?? null);
+			setWeatherData({ isLoading: false, forecast: data ?? null });
 		});
 	}, [position]);
 
@@ -246,7 +254,6 @@ export const LocationDrawer = ({
 					alignItems: "center",
 				},
 			}}
-			onClick={toggleDrawerExpanded}
 		>
 			<div
 				style={{
@@ -255,9 +262,11 @@ export const LocationDrawer = ({
 				}}
 			>
 				<div
+					onClick={toggleDrawerExpanded}
 					style={{
 						display: "flex",
 						flexDirection: "column",
+						cursor: "pointer",
 					}}
 				>
 					<div
@@ -404,10 +413,14 @@ export const LocationDrawer = ({
 									);
 								})()}
 							</div>
-							<h2 style={{ margin: 0, fontSize: "24px" }}>
-								{weatherData?.location.name ??
-									"unknown location"}
-							</h2>
+							{weatherData.isLoading ? (
+								<Skeleton variant="text" width={120} />
+							) : (
+								<h2 style={{ margin: 0, fontSize: "24px" }}>
+									{weatherData.forecast?.location.name ??
+										"unknown location"}
+								</h2>
+							)}
 						</div>
 						<h3
 							style={{
@@ -419,7 +432,10 @@ export const LocationDrawer = ({
 						>
 							{(() => {
 								const { region, country } =
-									weatherData?.location ?? {};
+									(weatherData.isLoading
+										? null
+										: weatherData.forecast
+									)?.location ?? {};
 								const terms = [region, country].filter(
 									(x) => !!x
 								);
@@ -505,7 +521,10 @@ export const LocationDrawer = ({
 								}}
 							>
 								{(() => {
-									const { visibilityKm } = weatherData ?? {};
+									const { visibilityKm } =
+										(weatherData.isLoading
+											? null
+											: weatherData.forecast) ?? {};
 									const visibilityDisplay = visibilityKm
 										? Math.round(visibilityKm * 10) / 10
 										: "? ";
@@ -530,7 +549,10 @@ export const LocationDrawer = ({
 									);
 								})()}
 								{(() => {
-									const { cloudCoverage } = weatherData ?? {};
+									const { cloudCoverage } =
+										(weatherData.isLoading
+											? null
+											: weatherData.forecast) ?? {};
 									const { label, icon } = (() => {
 										if (cloudCoverage == null) {
 											return {
